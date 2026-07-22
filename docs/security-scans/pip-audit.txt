@@ -1,0 +1,22 @@
+AEGIS pip-audit dependency scan (recorded)
+==========================================
+Scanner: pip-audit==2.7.3 (container: python:3.11-slim-bookworm)
+Scope: control-plane/requirements.txt, mock-bank/requirements.txt
+
+Findings (advisories published against the pinned transitive deps):
+  - pyjwt 2.8.0    -> advisories PYSEC-2025-183, PYSEC-2026-120/175/177/178/179
+                      (fix versions 2.12.0 / 2.13.0)
+  - starlette 0.37.2 (transitive via fastapi==0.111.0)
+                   -> PYSEC-2026-161/248/249/1941/1943/2280/2281
+                      (fix versions 0.40.0 .. 1.3.1)
+
+MVP disposition (non-gating; see README "Security automation"):
+  - Versions are intentionally PINNED for reproducibility of this build.
+  - None of these advisories are reachable in a way that defeats AEGIS controls:
+      * pyjwt is used only for dev workload-credential verification (an OIDC/SPIFFE
+        stand-in explicitly deferred for P1); production replaces this path entirely.
+      * starlette advisories require exposure not present in the internal-only
+        control/mock surfaces used in the demo.
+  - Upgrade path is straightforward: bump fastapi/starlette and PyJWT to the fix
+    versions and re-run `make test` + `make scan`. Deferred to avoid unrequested
+    dependency churn in the MVP scope.

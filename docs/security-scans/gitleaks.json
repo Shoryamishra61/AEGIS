@@ -1,0 +1,22 @@
+[
+ {
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 601,
+  "EndLine": 601,
+  "StartColumn": 13,
+  "EndColumn": 36,
+  "Match": "token\": \"REDACTED\"",
+  "Secret": "REDACTED",
+  "File": "/repo/AEGIS_SRS.md",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.5216405,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "RuleID": "generic-api-key",
+  "Fingerprint": "/repo/AEGIS_SRS.md:generic-api-key:601"
+ }
+]

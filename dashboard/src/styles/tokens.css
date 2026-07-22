@@ -1,0 +1,45 @@
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+:root {
+  --ledger-paper:#f4f1ea; --ledger-sheet:#fbf9f4; --ledger-ink:#0a1930;
+  --ledger-muted:#59616c; --ledger-faint:#8a8d8d; --ledger-rule:#cdc7bb;
+  --ledger-rule-soft:#dfdad0; --ledger-cobalt:#315cf6; --ledger-cobalt-pale:#e7ebff;
+  --ledger-teal:#1c7c68; --ledger-teal-pale:#e1eee9; --ledger-copper:#b66a3c;
+  --ledger-copper-pale:#f2e4d9; --ledger-red:#c73a31; --ledger-red-pale:#f5dfdc;
+  --proof-field:#07111f; --proof-ink:#e9edf4;
+  --font-sans:"Instrument Sans Variable","Arial Narrow",Arial,sans-serif;
+  --font-serif:"Instrument Serif",Georgia,serif;
+  --font-mono:"IBM Plex Mono",Consolas,monospace;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:20px;
+  --space-5:32px; --space-6:52px; --space-7:84px;
+  --radius-control:2px; --radius-field:4px; --radius-overlay:8px;
+  --shadow-overlay:0 18px 60px rgba(7,17,31,.18);
+  --motion-focus:120ms; --motion-state:160ms; --motion-contain:240ms;
+  --rail-w:76px; --header-h:64px;
+
+  /* compatibility aliases while legacy components transition */
+  --surface-canvas:var(--ledger-paper); --surface-raised:var(--ledger-sheet);
+  --surface-sunken:#ebe7de; --surface-hover:#efebe3; --text-primary:var(--ledger-ink);
+  --text-secondary:var(--ledger-muted); --text-tertiary:var(--ledger-faint);
+  --border-subtle:var(--ledger-rule-soft); --border-default:var(--ledger-rule);
+  --border-strong:#aaa396; --brand-700:var(--ledger-cobalt); --brand-600:#2449d8;
+  --brand-50:var(--ledger-cobalt-pale); --teal-600:var(--ledger-teal);
+  --teal-50:var(--ledger-teal-pale); --ok-700:var(--ledger-teal);
+  --ok-50:var(--ledger-teal-pale); --warn-700:var(--ledger-copper);
+  --warn-50:var(--ledger-copper-pale); --danger-700:var(--ledger-red);
+  --danger-50:var(--ledger-red-pale); --info-700:var(--ledger-cobalt);
+  --info-50:var(--ledger-cobalt-pale); --navy-900:var(--ledger-ink);
+  --fs-display:34px; --lh-display:38px; --fs-h1:25px; --lh-h1:30px;
+  --fs-h2:17px; --lh-h2:22px; --fs-body:14px; --lh-body:21px;
+  --fs-label:12px; --lh-label:16px; --fs-caption:11px; --lh-caption:15px;
+  --fs-mono:12px; --lh-mono:19px; --r-sm:2px; --r-md:4px; --r-lg:8px;
+  --r-pill:999px; --shadow-sm:none; --shadow-md:none; --shadow-pop:var(--shadow-overlay);
+  --t-fast:var(--motion-focus); --t:var(--motion-state); --t-slow:var(--motion-contain);
+  --nav-w:var(--rail-w); --s1:4px; --s2:8px; --s3:12px; --s4:20px;
+  --s5:32px; --s6:52px; --s7:84px; --s8:104px;
+}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}

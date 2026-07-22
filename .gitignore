@@ -1,0 +1,30 @@
+# Go
+gateway/bin/
+*.exe
+*.test
+*.out
+
+# Node
+dashboard/node_modules/
+dashboard/dist/
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+
+# Env / secrets
+.env
+*.local
+
+# Build / evidence artifacts (generated)
+docs/benchmark-results/*.json
+docs/benchmark-results/*.txt
+!docs/benchmark-results/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

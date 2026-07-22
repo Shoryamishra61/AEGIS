@@ -1,0 +1,134 @@
+openapi: 3.0.3
+info:
+  title: AEGIS Enforcement Gateway API
+  version: "1.0.0"
+  description: >
+    Pre-execution enforcement gateway for AI agent actions. Applies the SRS 7.3
+    decision precedence: identity -> containment(halt/revoke) -> freshness ->
+    schema -> policy -> approval -> budget -> durable audit -> dispatch.
+    Default-deny and fail-closed throughout. All monetary values are integers in
+    minor units (never floats).
+servers:
+  - url: http://localhost:8080
+    description: Local (docker compose)
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        "200": { description: alive }
+  /readyz:
+    get:
+      summary: Readiness probe (policy version + halt epoch)
+      responses:
+        "200":
+          description: ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ready }
+                  policy_version: { type: integer, format: int64 }
+                  halt_epoch: { type: integer, format: int64 }
+        "503": { description: not_ready }
+  /v1/actions:
+    post:
+      summary: Submit an agent action intent for enforcement
+      description: >
+        The gateway verifies the agent workload credential, applies containment,
+        schema, policy and atomic budget checks, durably audits the decision
+        BEFORE any dispatch, then dispatches to the protected backend. A
+        REQUIRE_APPROVAL policy effect fails closed (no dispatch) in the MVP.
+      security:
+        - agentBearer: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+          description: Must equal the body idempotency_key. Same key + different body => 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActionEnvelope" }
+      responses:
+        "200":
+          description: ALLOW (reserved + dispatched) or idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResponse" }
+        "401": { description: Unauthenticated / unknown agent (default-deny). }
+        "403":
+          description: DENY (containment, policy, payee, environment, etc.).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResponse" }
+        "409":
+          description: Idempotency conflict (same key, different body).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResponse" }
+        "429":
+          description: Budget cap exceeded (per-txn / window / shared pool).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionResponse" }
+components:
+  securitySchemes:
+    agentBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Dev HMAC-signed workload credential (OIDC/SPIFFE stand-in, P1 deferred).
+        `sub` maps to an agent's workload_sub.
+  schemas:
+    ActionEnvelope:
+      type: object
+      required: [api_version, action_id, idempotency_key, action, resource, arguments]
+      properties:
+        api_version: { type: string, example: v1 }
+        action_id: { type: string }
+        idempotency_key: { type: string }
+        action: { type: string, example: payments.transfer.create }
+        resource:
+          type: object
+          properties:
+            type: { type: string, example: payment_account }
+            id: { type: string }
+        arguments:
+          type: object
+          required: [payee_id, amount_minor, currency]
+          properties:
+            payee_id: { type: string, example: tok_payee_A921 }
+            amount_minor:
+              type: integer
+              format: int64
+              description: Integer minor units (e.g. paise). Never a float.
+              example: 25000
+            currency: { type: string, example: INR }
+            purpose_code: { type: string, example: VENDOR }
+    ActionResponse:
+      type: object
+      properties:
+        action_id: { type: string }
+        correlation_id: { type: string }
+        decision: { type: string, enum: [ALLOW, DENY] }
+        reason_codes:
+          type: array
+          items: { type: string }
+          example: [POLICY_PERMIT, BUDGET_RESERVED]
+        policy_version: { type: integer, format: int64 }
+        reservation_id: { type: string }
+        execution:
+          type: object
+          properties:
+            state: { type: string, enum: [COMMITTED, RELEASED, UNKNOWN] }
+            backend_reference: { type: string }
+        retryable: { type: boolean }
+        advice: { type: string, enum: [PROCEED, WAIT, STOP] }
+        reconciliation_required:
+          type: boolean
+          description: True when the backend outcome is UNKNOWN and exposure is held.

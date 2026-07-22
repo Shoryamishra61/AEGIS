@@ -1,0 +1,19 @@
+# Keep build contexts clean & reproducible. Deps are installed inside images.
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+gateway/bin
+**/*.exe
+**/*.test
+**/*.out
+.git
+.env
+*.local
+.DS_Store
+Thumbs.db
+docs/benchmark-results/*.json
+docs/benchmark-results/*.txt

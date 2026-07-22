@@ -1,0 +1,217 @@
+# AEGIS full stack. One command:  docker compose up --build
+#
+# Startup order enforced via healthchecks + depends_on conditions:
+#   postgres/redis -> db-migrate (one-shot) -> mock-bank/gateway/control-plane -> dashboard
+#
+# All images/deps are pinned. No host Go/Python/Node needed.
+# Host port mapping note: postgres/redis are published on 55432/56379 to avoid
+# collisions with commonly-running local services on 5432/6379. Internal
+# service-to-service traffic uses the compose network (postgres:5432, redis:6379).
+name: aegis
+
+x-common-env: &common-env
+  AEGIS_TENANT_ID: tenant_demo
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: aegis
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  AGENT_JWT_HMAC_SECRET: dev-agent-signing-secret-change-me
+  BACKEND_GATEWAY_CREDENTIAL: gw-only-shared-secret
+  SAFETY_FRESHNESS_SECONDS: "5"
+
+services:
+  postgres:
+    image: postgres:16.3-bookworm
+    environment:
+      POSTGRES_USER: aegis_admin
+      POSTGRES_PASSWORD: aegis_admin_pw
+      POSTGRES_DB: aegis
+    ports: ["55432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis_admin -d aegis"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [aegis]
+
+  redis:
+    image: redis:7.2.5-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["56379:6379"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [aegis]
+
+  # One-shot: run migrations + seed, then exit 0.
+  db-migrate:
+    image: postgres:16.3-bookworm
+    environment:
+      <<: *common-env
+      POSTGRES_USER: aegis_admin
+      POSTGRES_PASSWORD: aegis_admin_pw
+      GATEWAY_DB_USER: aegis_gateway
+      GATEWAY_DB_PASSWORD: aegis_gateway_pw
+      CONTROL_DB_USER: aegis_control
+      CONTROL_DB_PASSWORD: aegis_control_pw
+      AUDIT_READER_DB_USER: aegis_audit_reader
+      AUDIT_READER_DB_PASSWORD: aegis_audit_reader_pw
+    entrypoint: ["bash", "/db/bootstrap.sh"]
+    volumes:
+      - ./db:/db:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [aegis]
+
+  mock-bank:
+    build:
+      context: .
+      dockerfile: mock-bank/Dockerfile
+    environment:
+      <<: *common-env
+    ports: ["9090:9090"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9090/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [aegis]
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      <<: *common-env
+      GATEWAY_DB_USER: aegis_gateway
+      GATEWAY_DB_PASSWORD: aegis_gateway_pw
+      BACKEND_BASE_URL: http://mock-bank:9090
+      GATEWAY_PORT: "8080"
+    ports: ["8080:8080"]
+    healthcheck:
+      # distroless has no shell/curl; use the gateway's own probe via wget-less TCP.
+      # We rely on control-plane/tests hitting /readyz; here use a simple exec of the binary is not possible.
+      # Instead use a lightweight TCP check via the gateway readiness on an interval from a sidecar-free approach:
+      test: ["CMD", "/gateway", "-healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mock-bank: { condition: service_started }
+      db-migrate: { condition: service_completed_successfully }
+    networks: [aegis]
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: control-plane/Dockerfile
+    environment:
+      <<: *common-env
+      CONTROL_DB_USER: aegis_control
+      CONTROL_DB_PASSWORD: aegis_control_pw
+      CONTROL_ADMIN_TOKEN: admin-token-dev
+      CONTROL_OPERATOR_TOKEN: operator-token-dev
+      CONTROL_AUDITOR_TOKEN: auditor-token-dev
+      AUDIT_CHECKPOINT_KEY: checkpoint-hmac-dev
+      SINGLE_ADMIN_MODE: "true"
+      GATEWAY_URL: http://gateway:8080
+      MOCKBANK_URL: http://mock-bank:9090
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-migrate: { condition: service_completed_successfully }
+    networks: [aegis]
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports: ["5173:80"]
+    depends_on:
+      control-plane: { condition: service_started }
+    networks: [aegis]
+
+  # ----- Profiled: on-demand agent simulator (demo) -----
+  simulator:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    environment:
+      <<: *common-env
+      GATEWAY_URL: http://gateway:8080
+      CONTROL_URL: http://control-plane:8000
+      MOCKBANK_URL: http://mock-bank:9090
+      CONTROL_ADMIN_TOKEN: admin-token-dev
+    depends_on:
+      gateway: { condition: service_healthy }
+      control-plane: { condition: service_healthy }
+      mock-bank: { condition: service_healthy }
+    networks: [aegis]
+
+  # ----- Profiled: full pytest suite (integration + e2e + concurrency + chaos) -----
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    environment:
+      <<: *common-env
+      GATEWAY_URL: http://gateway:8080
+      CONTROL_URL: http://control-plane:8000
+      MOCKBANK_URL: http://mock-bank:9090
+      CONTROL_ADMIN_TOKEN: admin-token-dev
+      CONTROL_AUDITOR_TOKEN: auditor-token-dev
+      CONC_N: "1000"
+      BUDGET_POOL_ID: pool_payables
+    depends_on:
+      gateway: { condition: service_healthy }
+      control-plane: { condition: service_healthy }
+      mock-bank: { condition: service_healthy }
+    networks: [aegis]
+
+  # ----- Profiled: performance harness (writes report to ./docs/benchmark-results) -----
+  perf:
+    profiles: ["perf"]
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    command: ["python", "/tests/perf.py", "--intents", "10000", "--concurrency", "200", "--out", "/reports/perf-report.json"]
+    environment:
+      <<: *common-env
+      GATEWAY_URL: http://gateway:8080
+      CONTROL_URL: http://control-plane:8000
+      MOCKBANK_URL: http://mock-bank:9090
+      CONTROL_ADMIN_TOKEN: admin-token-dev
+    volumes:
+      - ./docs/benchmark-results:/reports
+    depends_on:
+      gateway: { condition: service_healthy }
+      mock-bank: { condition: service_healthy }
+    networks: [aegis]
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  aegis:
+    driver: bridge
