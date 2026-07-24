@@ -1,4 +1,4 @@
-# AEGIS operator dashboard: build with pinned Node, serve static via nginx.
+# AEGIS operator dashboard: build with pinned Node.
 FROM node:20.16.0-bookworm AS build
 WORKDIR /app
 COPY dashboard/package.json dashboard/package-lock.json* ./
@@ -6,6 +6,7 @@ COPY dashboard/package.json dashboard/package-lock.json* ./
 RUN npm install
 COPY dashboard/ ./
 # Dashboard talks to nginx-proxied /api at runtime.
+
 ENV VITE_CONTROL_URL=/api
 RUN npm run build
 
