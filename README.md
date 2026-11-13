@@ -13,6 +13,21 @@ containers — **a clean clone needs only Docker + Docker Compose**.
 
 ---
 
+## Live demo (no setup)
+
+The operator dashboard is deployed as a **self-contained, interactive demo** on
+GitHub Pages — every screen works in the browser against a faithful in-browser
+simulation of the control plane (decision pipeline, budgets, containment,
+SSE live stream, and a real SHA-256 audit hash chain you can verify):
+
+> **https://shoryamishra61.github.io/AEGIS/**
+
+Pick any role on the login screen and explore. The topbar shows a **DEMO** chip
+whenever the simulation backend is active. To run the *real* stack instead, use
+Docker Compose below.
+
+---
+
 ## Quick start (one command)
 
 ```bash
@@ -102,6 +117,8 @@ Components:
 - **`mock-bank/`** — protected backend; gateway-only credential, idempotency,
   invocation counter, `SIM_TIMEOUT`/`SIM_FAIL` fault hooks, `/stats` `/reset`.
 - **`dashboard/`** — React 18 + strict TypeScript operator UI (nginx, `/api` proxy).
+  In static deploys it runs against the in-browser demo backend
+  (`src/demo/backend.ts`) — see *Deploying the dashboard* below.
 - **`simulator/`** — normal + rogue agent scenarios (10 scenarios, self-checking).
 - **`tests/`** — pytest integration/e2e/concurrency/chaos suite + `perf.py`.
 
@@ -227,6 +244,41 @@ Approval workflow with bound approval tokens; dual-control / two-person auth;
 ML / Isolation-Forest anomaly detection; external signed/WORM checkpoints;
 Splunk/SIEM export; enterprise OIDC / SPIFFE-SPIRE / HSM; multi-region /
 multi-tenant; cross-currency budget aggregation.
+
+---
+
+## Deploying the dashboard (GitHub Pages / Vercel)
+
+The full stack (gateway, control plane, Postgres, Redis) requires Docker Compose
+and cannot run on static hosting. The **operator dashboard** can be deployed
+standalone: it is built with `VITE_DEMO_MODE=1`, which installs
+[`dashboard/src/demo/backend.ts`](dashboard/src/demo/backend.ts) — an in-browser
+simulation of the control plane with the full API surface, RBAC, optimistic
+concurrency, an SSE stream and a genuine SHA-256 hash chain. The UI is fully
+interactive (halt the fleet, revoke an agent, activate policy, verify the audit
+chain); only the money movement itself is simulated, and a **DEMO** chip in the
+topbar makes that unmistakable.
+
+### GitHub Pages (automatic)
+
+`.github/workflows/deploy-pages.yml` builds the dashboard on every push to
+`main` that touches `dashboard/**` (or on demand via *Run workflow*) and deploys
+it to Pages at `/AEGIS/`. One-time setup: **Settings → Pages → Source:
+GitHub Actions**. The workflow handles the `/AEGIS/` base path, a `404.html` SPA
+fallback for deep links, and `.nojekyll`.
+
+### Vercel (alternative)
+
+1. Import the repository into Vercel.
+2. Set **Root Directory** to `dashboard`, **Build Command** to `npm run build`,
+   **Output Directory** to `dist`.
+3. Add environment variable `VITE_DEMO_MODE=1` (Production + Preview).
+4. Deploy — Vercel handles SPA rewrites natively; no base-path flag is needed.
+
+Either way, the dashboard talks to nothing at runtime: the demo backend is
+bundled into the static site. To point the dashboard at a *real* control plane
+instead, set `VITE_CONTROL_URL` and build without `VITE_DEMO_MODE` (CORS or a
+same-origin proxy must then be configured on the control plane side).
 
 ---
 

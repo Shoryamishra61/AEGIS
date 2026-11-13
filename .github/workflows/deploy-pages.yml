@@ -1,0 +1,64 @@
+# Deploy the operator dashboard as a self-contained demo to GitHub Pages.
+#
+# The full AEGIS stack (gateway, control plane, Postgres, Redis) needs Docker
+# Compose and cannot run on Pages. The dashboard is built with VITE_DEMO_MODE=1
+# so the in-browser demo backend (dashboard/src/demo/backend.ts) answers every
+# request — the complete UI is explorable, with no backend required.
+#
+# The same build works on Vercel: set Root Directory=dashboard, Build Command
+# `npm run build`, Output Directory `dist`, and env VITE_DEMO_MODE=1.
+# (Vercel handles SPA rewrites natively; no base flag is needed there.)
+
+name: Deploy dashboard to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install dependencies
+        working-directory: dashboard
+        run: npm ci
+      - name: Build (demo mode, /AEGIS/ base path)
+        working-directory: dashboard
+        run: npm run build -- --base=/AEGIS/
+        env:
+          VITE_DEMO_MODE: "1"
+      - name: SPA fallback + disable Jekyll
+        working-directory: dashboard
+        run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

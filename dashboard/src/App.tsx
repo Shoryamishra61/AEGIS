@@ -26,6 +26,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { api, PERSONAS, type EmergencyStatus, type Persona } from "./api";
+import { isDemoMode } from "./demo/backend";
 import { canWrite, useAuth } from "./auth";
 import { LiveProvider, useLive } from "./live";
 import { TourProvider } from "./tour";
@@ -228,6 +229,14 @@ function Shell({ emergency }: { emergency: EmergencyStatus | null }) {
             <strong>THE CONTROL LEDGER</strong>
             <span>Tenant / Demo Bank</span>
           </div>
+          {isDemoMode() && (
+            <span
+              className="demo-chip"
+              title="Static demo build — the in-browser simulation backend answers every request. No control plane, gateway or money movement."
+            >
+              Demo
+            </span>
+          )}
           <button
             className="command-trigger"
             onClick={() => setCommandOpen(true)}
